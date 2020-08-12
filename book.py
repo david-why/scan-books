@@ -1,9 +1,10 @@
 #!/usr/bin/python3
 from __future__ import print_function
-import argparse
-import sys
+from threading import Thread
 from os import path
 from time import sleep, time
+import argparse
+import sys
 import json
 
 if sys.version_info.major == 2:
@@ -67,6 +68,54 @@ def check_isbn(isbn):
 	return isinstance(isbn, str) and len(isbn) == 13 and isbn.startswith('978') and (int(isbn[3]) * 1 + int(isbn[4]) * 2 + int(isbn[5]) * 3 + int(isbn[6]) * 4 + int(isbn[7]) * 5 + int(isbn[8]) * 6 + int(isbn[9]) * 7 + int(isbn[10]) * 8 + int(isbn[11]) * 9 + _[isbn[12]] * 10) % 11 == 0 and (int(isbn[3]) * 10 + int(isbn[4]) * 9 + int(isbn[5]) * 8 + int(isbn[6]) * 7 + int(isbn[7]) * 6 + int(isbn[8]) * 5 + int(isbn[9]) * 4 + int(isbn[10]) * 3 + int(isbn[11]) * 2 + _[isbn[12]] * 1) % 11 == 0
 
 
+def load_from_isbn(isbn, _):
+	if outdb:
+		outconn = sqlite3.connect(outname)
+		cur = outconn.cursor()
+	print('Finding: %s' % isbn, end='', flush=True)
+	res = requests.get('https://book.douban.com/isbn/%s/' % isbn, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.105 Safari/537.36'})
+	#print(res.url, res.status_code)
+	soup = BeautifulSoup(res.text, 'html.parser')
+	data = soup.find('script', attrs={'type': 'application/ld+json'})
+	if data is None:
+		print('\rNot found: %s' % isbn)
+		title = input('Title: ')
+		if not title:
+			cur.execute('INSERT INTO __notfound__ VALUES (?)', (isbn, ))
+			outconn.commit()
+			print('\r', end='')
+			if outdb:
+				cur.close()
+				outconn.close()
+			return None
+		else:
+			author = input('Author: ')
+			d = {'name': title, 'author': [{'name': author}]}
+	else:
+		print('\rFound: %s  ' % isbn)
+		d = json.loads(data.string.replace('\n', ''))
+	if outdb:
+		cur.close()
+		outconn.close()
+	fetched.add(isbn)
+	return d
+
+
+def bg():
+	if outdb:
+		outconn = sqlite3.connect(outname)
+		cur = outconn.cursor()
+	while True:
+		isbn = input()
+		d = load_from_isbn(isbn, cur if outdb else None)
+		if outdb:
+			cur.execute('INSERT INTO %s VALUES (?, ?, ?, ?)' % outtable, (time(), isbn, d['name'], ' '.join([x['name'] for x in d['author']])))
+			outconn.commit()
+		else:
+			with open(outname, 'a') as f:
+				f.write('%s,%s,%s%s%s,%s%s%s\n' % (time(), isbn, '"' if ',' in d['name'] else '', d['name'], '"' if ',' in d['name'] else '', '"' if ',' in ' '.join([x['name'] for x in d['author']]) else '', ' '.join([x['name'] for x in d['author']]), '"' if ',' in ' '.join([x['name'] for x in d['author']]) else ''))
+
+
 fetched = set()
 if indb or outdb:
 	try:
@@ -126,6 +175,9 @@ else:
 	del data
 #print(fetched)
 
+t = Thread(target=bg)
+t.setDaemon(True)
+t.start()
 olddata = []
 while True:
 	if args.wait_enter:
@@ -157,25 +209,9 @@ while True:
 	if outdb:
 		cur = outconn.cursor()
 	for isbn in found:
-		print('Finding: %s' % isbn, end='', flush=True)
-		res = requests.get('https://book.douban.com/isbn/%s/' % isbn, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.105 Safari/537.36'})
-		#print(res.url, res.status_code)
-		soup = BeautifulSoup(res.text, 'html.parser')
-		data = soup.find('script', attrs={'type': 'application/ld+json'})
-		if data is None:
-			print('\rNot found: %s' % isbn)
-			title = input('Title: ')
-			if not title:
-				cur.execute('INSERT INTO __notfound__ VALUES (?)', (isbn, ))
-				outconn.commit()
-				print('\r', end='')
-				continue
-			else:
-				author = input('Author: ')
-				d = {'name': title, 'author': [{'name': author}]}
-		else:
-			print('\rFound: %s  ' % isbn)
-			d = json.loads(data.string.replace('\n', ''))
+		d = load_from_isbn(isbn, cur if outdb else None)
+		if not d:
+			continue
 		if outdb:
 			cur.execute('INSERT INTO %s VALUES (?, ?, ?, ?)' % outtable, (time(), isbn, d['name'], ' '.join([x['name'] for x in d['author']])))
 			outconn.commit()
@@ -187,6 +223,7 @@ while True:
 	#	sleep(1)
 	#else:
 	#	sleep(0.5)
+
 
 inconn.close()
 outconn.close()

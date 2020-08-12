@@ -67,7 +67,6 @@ while True:
 	arr = np.asarray(im)
 	data = list(scan.scan(arr))
 	if [_.data for _ in olddata] == [_.data for _ in data] or not data:
-		sleep(0.2)
 		continue
 	if db:
 		cur = conn.cursor()

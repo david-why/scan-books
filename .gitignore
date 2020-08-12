@@ -1,3 +1,4 @@
 .*.swp
-dbs
-dbs/*
+tables
+*.bak
+*.db

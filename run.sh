@@ -2,7 +2,7 @@
 
 usage_error () { echo >&2 "$0: $1"; exit 2; }
 assert_argument () { test "$1" != "$EOL" || usage_error "$2 requires an argument"; }
-show_usage() { echo "Usage: $0 [-h] -o FILE -t TABLE [ -a | -w ]"; }
+show_usage () { echo "Usage: $0 [-h] -o FILE -t TABLE [ -a | -w ]"; }
 show_help () {
 	show_usage
 	echo 
@@ -38,13 +38,12 @@ if [ "$#" != 0 ]; then
 			-t|--table)  assert_argument "$1" $opt; table="$1"; shift;;
 			-a|--auto)
 				show_usage
-				test -v auto && usage_error 'argument -a/--auto specified more than once'
-				test -v wait_enter && usage_error 'argument -a/auto not allowed with -w/--wait-for-enter'
+				test -v auto && show_usage && usage_error 'argument -a/--auto specified more than once'
+				test -v wait_enter && show_usage && usage_error 'argument -a/auto not allowed with -w/--wait-for-enter'
 				auto='y';;
 			-w|--wait-for-enter)
-				show_usage
-				test -v wait_enter && usage_error 'argument -w/--wait-for-enter specified more than once'
-				test -v auto && usage_error 'argument -w/--wait-for-enter not allowed with -a/auto'
+				test -v wait_enter && show_usage && usage_error 'argument -w/--wait-for-enter specified more than once'
+				test -v auto && show_usage && usage_error 'argument -w/--wait-for-enter not allowed with -a/auto'
 				wait_for_enter='y';;
 
 			-|''|[^-]*) set -- "$@" "$opt";;                                          # positional argument, rotate to the end
