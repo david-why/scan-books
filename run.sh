@@ -2,7 +2,7 @@
 
 usage_error () { echo >&2 "$0: $1"; exit 2; }
 assert_argument () { test "$1" != "$EOL" || usage_error "$2 requires an argument"; }
-show_usage () { echo "Usage: $0 [-h] -o FILE -t TABLE [ -a | -w ]"; }
+show_usage () { echo "Usage: $0 [-h] -o FILE -t TABLE [ -a | -w ] [-b | -n]"; }
 show_help () {
 	show_usage
 	echo 
@@ -16,6 +16,8 @@ show_help () {
 	echo 'Optional arguments:'
 	echo '    -a, --auto                Automatically scans the codes. Is the default.'
 	echo '    -w, --wait-for-enter      Waits for Enter key pressed before scanning.'
+	echo '    -b, --start-background    Starts the background task of reading ISBNs from stdin.'
+	echo '    -n, --no-background       Does not start the background task. Is the default.'
 }
 exit_prog () { 
 	trap 'trapped' SIGINT
@@ -36,8 +38,15 @@ if [ "$#" != 0 ]; then
 			-h|--help)   show_help; exit 0;;
 			-o|--output) assert_argument "$1" $opt; output="$1"; shift;;
 			-t|--table)  assert_argument "$1" $opt; table="$1"; shift;;
+			-b|--start-background) 
+				test -v nobg && show_usage && usage_error 'argument -b/--start-background not allowed with -n/--no-background'
+				test -v runbg && show_usage && usage_error 'argument -b/--start-background specified more than once'
+				runbg='y';;
+			-n|--no-background) 
+				test -v runbg && show_usage && usage_error 'argument -n/--no-background not allowed with -b/--start-background'
+				test -v nobg && show_usage && usage_error 'argument -n/--no-background specified more than once'
+				nobg='y';;
 			-a|--auto)
-				show_usage
 				test -v auto && show_usage && usage_error 'argument -a/--auto specified more than once'
 				test -v wait_enter && show_usage && usage_error 'argument -a/auto not allowed with -w/--wait-for-enter'
 				auto='y';;
@@ -64,10 +73,12 @@ test ! -e scan.py && usage_error 'scan.py not found'
 test ! -e book.py && usage_error 'book.py not found'
 test -v auto -o ! -v wait_enter && arg='-a'
 test -v wait_enter && arg='-w'
+test -v nobg -o ! -v runbg && arg2="$arg -n"
+test -v runbg && arg2="$arg -b"
 test ! -v arg && usage_error 'WHAT??!'
 trap exit_prog SIGINT
 test -e /dev/shm/tmp.db && rm /dev/shm/tmp.db
 python3 scan.py ${arg}o DB:/dev/shm/tmp.db 2>/tmp/scan.py.log &
 sleep 1
-python3 book.py ${arg}i DB:/dev/shm/tmp.db/barcodes -o DB:${output}/${table}
+python3 book.py ${arg2}i DB:/dev/shm/tmp.db/barcodes -o DB:${output}/${table}
 

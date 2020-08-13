@@ -16,6 +16,10 @@ g.add_argument('--wait-for-enter', '-w', action='store_true', dest='wait_enter',
 g.add_argument('--auto-fetch', '-a', action='store_false', dest='wait_enter', help='Autumatically fetch book data when file is changed.')
 ap.add_argument('--input', '-i', type=str, help='The file to read the ISBN data. Default: "DB:barcodes.db/barcodes"', default='DB:barcodes.db/barcodes', required=False, dest='infile', metavar='FILE')
 ap.add_argument('--output', '-o', type=str, help='The file to save book data fetched. Default: "DB:books.db/books"', default='DB:books.db/books', required=False, dest='outfile', metavar='FILE')
+g2 = ap.add_mutually_exclusive_group()
+g2.add_argument('--start-background', '-b', action='store_true', dest='bg', help='Starts the background task that reads ISBNs from stdin. Note that when this is turned on the title and author input when the book is not found might be affected. To avoid this, enter the ISBN that cannot be identified to stdin instead of scanning it.')
+g2.add_argument('--no-background', '-n', action='store_false', dest='bg', help='Does not start the background task. Is the default.', default=False)
+
 args = ap.parse_args()
 
 if args.infile.startswith('DB:'):
@@ -175,9 +179,11 @@ else:
 	del data
 #print(fetched)
 
-t = Thread(target=bg)
-t.setDaemon(True)
-t.start()
+if args.bg:
+	t = Thread(target=bg)
+	t.setDaemon(True)
+	t.start()
+
 olddata = []
 while True:
 	if args.wait_enter:
