@@ -57,6 +57,12 @@ try:
 except ImportError:
 	print('BeautifulSoup4 needed for this program!')
 	sys.exit(1)
+try:
+	import pygame
+	use_pygame = True
+except ImportError:
+	print('Playing disabled')
+	use_pygame = False
 
 if not path.isfile(inname):
 	print('Input file does not exist or is not a regular file!')
@@ -76,12 +82,22 @@ def load_from_isbn(isbn, _):
 	if outdb:
 		outconn = sqlite3.connect(outname)
 		cur = outconn.cursor()
+	if use_pygame:
+		pygame.mixer.music.play()
 	print('Finding: %s' % isbn, end='', flush=True)
-	res = requests.get('https://book.douban.com/isbn/%s/' % isbn, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.105 Safari/537.36'})
+	cookies = {'bid': 'v8TlFUN1Vzw', 'ck': 'pDfi', 'ct': 'y', 'dbcl2': '"221846744:fP3oMElC9y8"', 'll': '"118159"', 'push_doumail_num': '0', 'push_noty_num': '0', 'viewed': '"19963465_35154591"'}
+	res = requests.get('https://book.douban.com/isbn/%s/' % isbn, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.105 Safari/537.36'}, cookies=cookies)
 	#print(res.url, res.status_code)
 	soup = BeautifulSoup(res.text, 'html.parser')
 	data = soup.find('script', attrs={'type': 'application/ld+json'})
+	if use_pygame:
+		pygame.mixer.music.play()
 	if data is None:
+		if use_pygame:
+			while pygame.mixer.music.get_busy():
+				continue
+			pygame.time.wait(100)
+			pygame.mixer.music.play()
 		print('\rNot found: %s' % isbn)
 		title = input('Title: ')
 		if not title:
@@ -96,8 +112,8 @@ def load_from_isbn(isbn, _):
 			author = input('Author: ')
 			d = {'name': title, 'author': [{'name': author}]}
 	else:
-		print('\rFound: %s  ' % isbn)
 		d = json.loads(data.string.replace('\n', ''))
+		print('\rFound: %s  Title: %s' % (isbn, d['name']))
 	if outdb:
 		cur.close()
 		outconn.close()
@@ -120,6 +136,11 @@ def bg():
 				f.write('%s,%s,%s%s%s,%s%s%s\n' % (time(), isbn, '"' if ',' in d['name'] else '', d['name'], '"' if ',' in d['name'] else '', '"' if ',' in ' '.join([x['name'] for x in d['author']]) else '', ' '.join([x['name'] for x in d['author']]), '"' if ',' in ' '.join([x['name'] for x in d['author']]) else ''))
 
 
+if use_pygame:
+	pygame.mixer.init()
+	pygame.mixer.music.load('beep.wav')
+	pygame.mixer.music.set_volume(0.5)
+	pygame.mixer.music.play()
 fetched = set()
 if indb or outdb:
 	try:

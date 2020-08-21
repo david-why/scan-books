@@ -2,7 +2,7 @@
 
 usage_error () { echo >&2 "$0: $1"; exit 2; }
 assert_argument () { test "$1" != "$EOL" || usage_error "$2 requires an argument"; }
-show_usage () { echo "Usage: $0 [-h] -o FILE -t TABLE [ -a | -w ] [-b | -n]"; }
+show_usage () { echo "Usage: $0 [-h] -o FILE -t TABLE [-a | -w] [-b | -n]"; }
 show_help () {
 	show_usage
 	echo 
@@ -79,6 +79,5 @@ test ! -v arg && usage_error 'WHAT??!'
 trap exit_prog SIGINT
 test -e /dev/shm/tmp.db && rm /dev/shm/tmp.db
 python3 scan.py ${arg}o DB:/dev/shm/tmp.db 2>/tmp/scan.py.log &
-sleep 1
 python3 book.py ${arg2}i DB:/dev/shm/tmp.db/barcodes -o DB:${output}/${table}
 
